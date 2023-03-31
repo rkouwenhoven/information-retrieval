@@ -1,6 +1,10 @@
 import logging
 from collections import defaultdict
 
+import pandas as pd
+import numpy as np
+from sklearn import preprocessing
+
 from fast_forward.ranking import Ranking
 
 LOGGER = logging.getLogger(__name__)
@@ -65,3 +69,37 @@ def interpolate(
                 result = interpolate_rrf(alpha, score1, score2)
             results[q_id][doc_id] = result
     return Ranking(results, name=name, sort=sort, copy=False)
+
+
+def normalizeMinMax(results: defaultdict):
+    df = pd.DataFrame({'document_id': results.keys(), 'score': results.values()})
+    min_max_scaler = preprocessing.MinMaxScaler()
+    x = df['score'].values.reshape(-1, 1)  # returns a numpy array
+    x = min_max_scaler.fit_transform(x)
+    x = np.rint(x * 3)
+    df['score'] = x
+    return dict(zip(df['document_id'], df['score']))
+
+
+def normalizeMax(results: defaultdict):
+    df = pd.DataFrame({'document_id': results.keys(), 'score': results.values()})
+    #If also deleting an offset
+    # df['score'] = df['score'] - offset
+    df['score'] = df['score'] / df['score'].max()
+
+    # This normalize is wack
+    # df['score'] = preprocessing.normalize(df['score'].values.reshape(-1, 1))
+    # print(df['score'])
+
+    # df['score'] = np.rint(df['score'] * 3)
+    return dict(zip(df['document_id'], df['score']))
+
+def normalizeMeanStd(results: defaultdict):
+    df = pd.DataFrame({'document_id': results.keys(), 'score': results.values()})
+    # If also deleting an offset
+    # df['score'] = df['score'] - offset
+    df['score'] = df['score'] - df['score'].mean()
+    df['score'] = df['score'] / df['score'].max()
+    df['score'] = df['score'] / df['score'].std()
+
+    return dict(zip(df['document_id'], df['score']))
