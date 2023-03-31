@@ -14,8 +14,7 @@ from scipy.spatial.distance import cosine
 
 from fast_forward.ranking import Ranking
 from fast_forward.encoder import QueryEncoder
-from fast_forward.util import interpolate
-
+from fast_forward.util import interpolate, interpolate_cc, interpolate_rrf
 
 LOGGER = logging.getLogger(__name__)
 
@@ -251,6 +250,7 @@ class Index(abc.ABC):
         sparse_scores: Iterable[float],
         alpha: float,
         cutoff: int,
+        useCc: bool
     ) -> Dict[str, float]:
         """Interpolate scores with early stopping.
 
@@ -260,6 +260,7 @@ class Index(abc.ABC):
             sparse_scores (Iterable[float]): Corresponding sparse scores.
             alpha (float): Interpolation parameter.
             cutoff (int): Cut-off depth.
+            useCc (bool): Whether to use convex combination as fusion function.
 
         Returns:
             Dict[str, float]: Document/passage IDs mapped to scores.
@@ -286,7 +287,10 @@ class Index(abc.ABC):
                 continue
 
             max_dense_score = max(max_dense_score, dense_score)
-            score = alpha * sparse_score + (1 - alpha) * dense_score
+            if useCc:
+                score = interpolate_cc(alpha, sparse_score, dense_score)
+            else:
+                score = interpolate_rrf(alpha, sparse_score, dense_score)
             result[id] = score
 
             # the new score might be ranked higher than the one we removed
@@ -300,6 +304,7 @@ class Index(abc.ABC):
         alpha: Union[float, Iterable[float]] = 0.0,
         cutoff: int = None,
         early_stopping: bool = False,
+        useCc: bool = True
     ) -> Dict[float, Ranking]:
         """Compute corresponding dense scores for a ranking and interpolate.
 
@@ -309,6 +314,7 @@ class Index(abc.ABC):
             alpha (Union[float, Iterable[float]], optional): Interpolation weight(s). Defaults to 0.0.
             cutoff (int, optional): Cut-off depth (documents/passages per query). Defaults to None.
             early_stopping (bool, optional): Whether to use early stopping. Defaults to False.
+            useCc (bool, optional): Whether to use convex combination as fusion function. Defaults to True.
 
         Raises:
             ValueError: When the cut-off depth is missing for early stopping.
@@ -341,7 +347,7 @@ class Index(abc.ABC):
                         dense_run[q_id][id] = score
             for a in alpha:
                 result[a] = interpolate(
-                    ranking, Ranking(dense_run, sort=False), a, sort=True
+                    ranking, Ranking(dense_run, sort=False), a, sort=True, useCc=useCc
                 )
                 if cutoff is not None:
                     result[a].cut(cutoff)
@@ -359,7 +365,7 @@ class Index(abc.ABC):
                     ids, sparse_scores = zip(*ranking[q_id].items())
                     dense_scores = self._compute_scores(q_rep, ids)
                     scores = self._early_stopping(
-                        ids, dense_scores, sparse_scores, a, cutoff
+                        ids, dense_scores, sparse_scores, a, cutoff, useCc
                     )
                     for id, score in scores.items():
                         run[q_id][id] = score
