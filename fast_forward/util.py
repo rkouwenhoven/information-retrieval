@@ -39,7 +39,7 @@ def interpolate_rrf(alpha: float, score1: float, score2: float) -> float:
 
 
 def interpolate(
-        r1: Ranking, r2: Ranking, alpha: float, name: str = None, sort: bool = True, useCc: bool = True
+        r1: Ranking, r2: Ranking, alpha: float, name: str = None, sort: bool = True, useCc: bool = True, normalization: str = None
 ) -> Ranking:
     """Interpolate scores. For each query-doc pair:
         * If the pair has only one score, ignore it.
@@ -52,6 +52,7 @@ def interpolate(
         name (str, optional): Ranking name. Defaults to None.
         sort (bool, optional): Whether to sort the documents by score. Defaults to True.
         useCc (bool, optional): Whether to use convex combination or RRF for interpolation. Defaults to True.
+        normalization (str, optional): How to normalize scores before interpolation. Defaults to None.
 
     Returns:
         Ranking: Interpolated ranking.
@@ -59,9 +60,27 @@ def interpolate(
     assert r1.q_ids == r2.q_ids
     results = defaultdict(dict)
     for q_id in r1:
-        for doc_id in r1[q_id].keys() & r2[q_id].keys():
-            score1 = r1[q_id][doc_id]
-            score2 = r2[q_id][doc_id]
+
+        if normalization is None:
+            r1_norm = r1[q_id]
+            r2_norm = r2[q_id]
+        elif normalization == 'minmax':
+            r1_norm = normalizeMinMax(r1[q_id])
+            r2_norm = normalizeMinMax(r2[q_id])
+        elif normalization == 'max':
+            r1_norm = normalizeMax(r1[q_id])
+            r2_norm = normalizeMax(r2[q_id])
+        elif normalization == 'meanstd':
+            r1_norm = normalizeMeanStd(r1[q_id])
+            r2_norm = normalizeMeanStd(r2[q_id])
+        else:
+            raise ValueError(
+                "Invalid normalization type: choose from [None, 'minmax', 'max', 'meanstd']"
+            )
+
+        for doc_id in r1_norm.keys() & r2_norm.keys():
+            score1 = r1_norm[doc_id]
+            score2 = r2_norm[doc_id]
 
             if useCc:
                 result = interpolate_cc(alpha, score1, score2)
@@ -71,7 +90,7 @@ def interpolate(
     return Ranking(results, name=name, sort=sort, copy=False)
 
 
-def normalizeMinMax(results: defaultdict):
+def normalizeMinMax(results: dict[str, float]):
     df = pd.DataFrame({'document_id': results.keys(), 'score': results.values()})
     min_max_scaler = preprocessing.MinMaxScaler()
     x = df['score'].values.reshape(-1, 1)  # returns a numpy array
@@ -81,7 +100,7 @@ def normalizeMinMax(results: defaultdict):
     return dict(zip(df['document_id'], df['score']))
 
 
-def normalizeMax(results: defaultdict):
+def normalizeMax(results: dict[str, float]):
     df = pd.DataFrame({'document_id': results.keys(), 'score': results.values()})
     #If also deleting an offset
     # df['score'] = df['score'] - offset
@@ -94,7 +113,7 @@ def normalizeMax(results: defaultdict):
     # df['score'] = np.rint(df['score'] * 3)
     return dict(zip(df['document_id'], df['score']))
 
-def normalizeMeanStd(results: defaultdict):
+def normalizeMeanStd(results: dict[str, float]):
     df = pd.DataFrame({'document_id': results.keys(), 'score': results.values()})
     # If also deleting an offset
     # df['score'] = df['score'] - offset

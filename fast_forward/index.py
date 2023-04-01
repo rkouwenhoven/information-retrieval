@@ -304,7 +304,8 @@ class Index(abc.ABC):
         alpha: Union[float, Iterable[float]] = 0.0,
         cutoff: int = None,
         early_stopping: bool = False,
-        useCc: bool = True
+        useCc: bool = True,
+        normalization: str = None
     ) -> Dict[float, Ranking]:
         """Compute corresponding dense scores for a ranking and interpolate.
 
@@ -343,11 +344,12 @@ class Index(abc.ABC):
                 for id, score in zip(ids, self._compute_scores(q_rep, ids)):
                     if score is None:
                         LOGGER.warning(f"{id} not indexed, skipping")
+                        continue
                     else:
                         dense_run[q_id][id] = score
             for a in alpha:
                 result[a] = interpolate(
-                    ranking, Ranking(dense_run, sort=False), a, sort=True, useCc=useCc
+                    ranking, Ranking(dense_run, sort=False), a, sort=True, useCc=useCc, normalization=normalization
                 )
                 if cutoff is not None:
                     result[a].cut(cutoff)
