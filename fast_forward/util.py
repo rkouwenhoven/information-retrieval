@@ -24,18 +24,19 @@ def interpolate_cc(alpha: float, score1: float, score2: float) -> float:
     return alpha * score1 + (1 - alpha) * score2
 
 
-def interpolate_rrf(eta1: float, eta2: float, score1: float, score2: float) -> float:
-    """Interpolate scores using reciprocal rank fusion: 1 / (alpha + r1) + 1 / (alpha + r2).
+def interpolate_rrf(eta1: float, eta2: float, rank1: float, rank2: float) -> float:
+    """Interpolate scores using reciprocal rank fusion: 1 / (eta1 + r1) + 1 / (eta2 + r2).
 
         Args:
-            alpha (float):
-            score1 (float):
-            score2 (float):
+            eta1 (float):
+            eta2 (float):
+            rank1 (float):
+            rank2 (float):
 
         Returns:
             float: Interpolated score
         """
-    return 1 / (eta1 + score1) + 1 / (eta2 + score2)
+    return 1 / (eta1 + rank1) + 1 / (eta2 + rank2)
 
 
 def interpolate(
@@ -110,7 +111,7 @@ def rr_fusion(
     results = defaultdict(dict)
     for q_id in r1:
 
-        # Ranking for RRF
+        # Assumes given Rankings are sorted
         ranking1 = list(r1[q_id].keys())
         ranking2 = list(r2[q_id].keys())
 

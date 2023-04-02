@@ -359,7 +359,7 @@ class Index(abc.ABC):
             else:
                 for e1, e2 in zip(eta1, eta2):
                     result[(e1, e2)] = rr_fusion(
-                        ranking, Ranking(dense_run, sort=False), e1, e2, sort=True
+                        ranking, Ranking(dense_run, sort=True), e1, e2, sort=True
                     )
                     if cutoff is not None:
                         result[(e1, e2)].cut(cutoff)
