@@ -78,14 +78,20 @@ def interpolate(
                 "Invalid normalization type: choose from [None, 'minmax', 'max', 'meanstd']"
             )
 
+        ranking1 = list(r1_norm.keys())
+        ranking2 = list(r2_norm.keys())
+
         for doc_id in r1_norm.keys() & r2_norm.keys():
             score1 = r1_norm[doc_id]
             score2 = r2_norm[doc_id]
 
+            rank1 = 1 + ranking1.index(doc_id)
+            rank2 = 1 + ranking2.index(doc_id)
+
             if useCc:
                 result = interpolate_cc(alpha, score1, score2)
             else:
-                result = interpolate_rrf(alpha, score1, score2)
+                result = interpolate_rrf(alpha, rank1, rank2)
             results[q_id][doc_id] = result
     return Ranking(results, name=name, sort=sort, copy=False)
 
@@ -95,7 +101,7 @@ def normalizeMinMax(results: dict[str, float]):
     min_max_scaler = preprocessing.MinMaxScaler()
     x = df['score'].values.reshape(-1, 1)  # returns a numpy array
     x = min_max_scaler.fit_transform(x)
-    x = np.rint(x * 3)
+    # x = np.rint(x * 3)
     df['score'] = x
     return dict(zip(df['document_id'], df['score']))
 
