@@ -14,7 +14,7 @@ from scipy.spatial.distance import cosine
 
 from fast_forward.ranking import Ranking
 from fast_forward.encoder import QueryEncoder
-from fast_forward.util import interpolate, interpolate_cc, interpolate_rrf
+from fast_forward.util import interpolate, interpolate_cc, interpolate_rrf, rr_fusion
 
 LOGGER = logging.getLogger(__name__)
 
@@ -283,7 +283,7 @@ class Index(abc.ABC):
                     break
 
             if dense_score is None:
-                LOGGER.warning(f"{id} not indexed, skipping")
+                # LOGGER.warning(f"{id} not indexed, skipping")
                 continue
 
             max_dense_score = max(max_dense_score, dense_score)
@@ -302,6 +302,8 @@ class Index(abc.ABC):
         ranking: Ranking,
         queries: Dict[str, str],
         alpha: Union[float, Iterable[float]] = 0.0,
+        eta1: Union[float, Iterable[float]] = 0.0,
+        eta2: Union[float, Iterable[float]] = 0.0,
         cutoff: int = None,
         early_stopping: bool = False,
         useCc: bool = True,
@@ -343,17 +345,29 @@ class Index(abc.ABC):
                 ids = list(ranking[q_id].keys())
                 for id, score in zip(ids, self._compute_scores(q_rep, ids)):
                     if score is None:
-                        LOGGER.warning(f"{id} not indexed, skipping")
+                        # LOGGER.warning(f"{id} not indexed, skipping")
                         continue
                     else:
                         dense_run[q_id][id] = score
-            for a in alpha:
-                result[a] = interpolate(
-                    ranking, Ranking(dense_run, sort=False), a, sort=True, useCc=useCc, normalization=normalization
-                )
-                if cutoff is not None:
-                    result[a].cut(cutoff)
+            if useCc:
+                for a in alpha:
+                    result[a] = interpolate(
+                        ranking, Ranking(dense_run, sort=False), a, sort=True, useCc=useCc, normalization=normalization
+                    )
+                    if cutoff is not None:
+                        result[a].cut(cutoff)
+            else:
+                for e1, e2 in zip(eta1, eta2):
+                    result[(e1, e2)] = rr_fusion(
+                        ranking, Ranking(dense_run, sort=False), e1, e2, sort=True
+                    )
+                    if cutoff is not None:
+                        result[(e1, e2)].cut(cutoff)
         else:
+            # Early stopping not implemented for RRF
+            if useCc is False:
+                raise NotImplementedError("Early stopping is not implemented for RRF")
+
             # early stopping requries the ranking to be sorted
             # this should normally be the case anyway
             if not ranking.is_sorted:
